@@ -35,7 +35,7 @@ module HamlToErb
       when :doctype      then emit_doctype(node, depth)
       when :comment      then emit_comment(node, depth)
       when :plain        then emit_plain(node, depth)
-      when :haml_comment then ""
+      when :haml_comment then emit_haml_comment(node, depth)
       else
         warn "Unknown node type: #{node.type}"
         ""
@@ -162,6 +162,15 @@ module HamlToErb
 
     def emit_comment(node, depth)
       "#{indent(depth)}<!-- #{node.value[:text]} -->\n"
+    end
+
+    def emit_haml_comment(node, depth)
+      text = node.value[:text]
+      if text.include?("\n")
+        "#{indent(depth)}<%#\n#{text.lines.map { |l| "#{indent(depth + 1)}#{l}" }.join}#{indent(depth)}%>\n"
+      else
+        "#{indent(depth)}<%##{text} %>\n"
+      end
     end
 
     def emit_plain(node, depth)

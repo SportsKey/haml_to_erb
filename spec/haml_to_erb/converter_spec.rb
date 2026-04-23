@@ -363,10 +363,35 @@ RSpec.describe HamlToErb::Converter do
         expect(result).to include("<!-- This is a comment -->")
       end
 
-      it "omits HAML comments from output" do
-        result = convert("-# This is a HAML comment")
-        expect(result).not_to include("HAML comment")
-        expect(result).not_to include("<!--")
+      it "converts HAML comments to ERB comments" do
+        result = convert("-# This is a HAML comment\n-# 2nd line")
+        expect(result.strip).to eq("<%# This is a HAML comment %>\n<%# 2nd line %>")
+      end
+
+      it "converts multi-line HAML comments" do
+        haml = <<~HAML
+          -#
+            Line 1
+            Line 2
+        HAML
+        result = convert(haml)
+        expect(result.strip).to eq(<<~EOS.strip)
+          <%#
+            Line 1
+            Line 2
+          %>
+        EOS
+      end
+
+      it "preserves indentation for nested comments" do
+        haml = <<~HAML
+          %div
+            -# nested
+            %p text
+        HAML
+        result = convert(haml)
+        expect(result).to include("  <%# nested %>")
+        expect(result).to include("  <p>text</p>")
       end
     end
 
