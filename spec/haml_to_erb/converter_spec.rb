@@ -405,6 +405,19 @@ RSpec.describe HamlToErb::Converter do
         expect(result).to include("Hello")
         expect(result).to include("<%= name %>")
       end
+
+      it "preserves non-ASCII characters in interpolated plain text" do
+        # Haml's parser turns an interpolated plain-text line into a Ruby
+        # string literal via String#dump, which escapes non-ASCII characters
+        # to \uXXXX. The conversion must decode them back to the original text.
+        result = convert('（こんにちは、#{name}。）')
+        expect(result).to eq("（こんにちは、<%= name %>。）\n")
+      end
+
+      it "preserves non-ASCII characters in interpolated inline tag text" do
+        result = convert('%span （こんにちは、#{name}。）')
+        expect(result).to eq("<span>（こんにちは、<%= name %>。）</span>\n")
+      end
     end
 
     context "object reference syntax" do

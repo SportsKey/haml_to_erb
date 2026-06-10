@@ -3,6 +3,7 @@
 require "haml"
 require_relative "attribute_builder"
 require_relative "interpolation"
+require_relative "string_literal_decoder"
 
 module HamlToErb
   # Converts HAML to ERB using the HAML parser
@@ -89,12 +90,9 @@ module HamlToErb
       if node.children.any?
         "#{ind}<%= #{code} %>\n" + emit_children(node, depth + 1) + "#{ind}<% end %>\n"
       elsif code.start_with?('"') && code.end_with?('"') && code.include?('#{')
-        # String literal with interpolation - convert to text + ERB
-        # Only handles \" and \\. Complex escape sequences (\n, \t, \u{...}) are
-        # passed through literally — a known limitation (see CLAUDE.md).
-        inner = code[1..-2]
-        unescaped = inner.gsub('\"', '"').gsub("\\\\", "\\")
-        "#{ind}#{Interpolation.convert(unescaped)}\n"
+        # String literal with interpolation (Haml dumps interpolated plain text
+        # this way). Decode the escape sequences and convert the interpolation.
+        "#{ind}#{StringLiteralDecoder.decode(code)}\n"
       else
         "#{ind}<%= #{code} %>\n"
       end
@@ -181,11 +179,9 @@ module HamlToErb
       val = tag_data[:value].to_s
       if tag_data[:parse]
         if val.start_with?('"') && val.end_with?('"') && val.include?('#{')
-          # Only handles \" and \\. Complex escape sequences (\n, \t, \u{...}) are
-          # passed through literally — a known limitation (see CLAUDE.md).
-          inner = val[1..-2]
-          unescaped = inner.gsub('\"', '"').gsub("\\\\", "\\")
-          Interpolation.convert(unescaped)
+          # Inline tag content with interpolation arrives as a Ruby string
+          # literal (dumped by Haml); decode escapes and convert interpolation.
+          StringLiteralDecoder.decode(val)
         else
           "<%= #{val} %>"
         end

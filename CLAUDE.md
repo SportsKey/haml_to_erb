@@ -68,4 +68,4 @@ Tests use RSpec with a custom `be_valid_erb` matcher that validates output again
 - Whitespace removal markers (`>`, `<`) parsed but not applied
 - Old doctypes converted to HTML5
 - Unknown filters (`:markdown`, etc.) output as HTML comments
-- String escape sequences limited to `\"` and `\\` in interpolated string literals
+- Binary `\xHH` escapes in interpolated string literals are decoded but may break UTF-8 output (String#dump emits these only for non-UTF-8 source, which is rare for templates)
