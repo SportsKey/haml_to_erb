@@ -16,6 +16,12 @@ module HamlToErb
       required reversed scoped seamless selected
     ].freeze
 
+    # Matches one "key =>" or "key:" pair at the start of a Ruby hash body.
+    # The key may be a symbol (:foo), a quoted string ("v-bind:x"), or a bare
+    # word (foo). Quoted keys allow any inner character so attribute names with
+    # colons, dots, @, etc. (Vue/Angular/Stimulus bindings) parse correctly.
+    KEY_PATTERN = /\A\s*(?::(\w+)|(['"])((?:\\.|[^\\])*?)\2|([\w-]+))\s*(?:=>|:)\s*/
+
     def initialize
       @parser = PrismParser.new
     end
@@ -158,7 +164,7 @@ module HamlToErb
         end
 
         # Match key: symbol (:foo), string ('foo'/"foo"), or bare word (foo)
-        match = remaining.match(/\A\s*(?::(\w+)|(['"])([\w-]+)\2|([\w-]+))\s*(?:=>|:)\s*/)
+        match = remaining.match(KEY_PATTERN)
         break unless match
 
         key = (match[1] || match[3] || match[4]).tr("_", "-")
@@ -275,7 +281,7 @@ module HamlToErb
       remaining = content.strip
 
       while remaining && !remaining.empty?
-        match = remaining.match(/\A\s*(?::(\w+)|(['"])([\w-]+)\2|([\w-]+))\s*(?:=>|:)\s*/)
+        match = remaining.match(KEY_PATTERN)
         break unless match
 
         raw_key = (match[1] || match[3] || match[4]).tr("_", "-")

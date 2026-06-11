@@ -176,6 +176,30 @@ RSpec.describe HamlToErb::AttributeBuilder do
       end
     end
 
+    context "quoted keys containing colons (framework bindings)" do
+      it "keeps a colon-containing string key with a dynamic value" do
+        result = build_dynamic('"v-bind:x" => foo')
+        expect(result).to eq(' v-bind:x="<%= foo %>"')
+      end
+
+      it "keeps a colon-containing string key with a string value" do
+        result = build_dynamic('"v-bind:x" => "y"')
+        expect(result).to eq(' v-bind:x="y"')
+      end
+
+      it "does not drop sibling attributes when a colon key has a dynamic value" do
+        result = build_dynamic('"v-bind:x" => foo, "class" => "c"')
+        expect(result).to include('class="c"')
+        expect(result).to include('v-bind:x="<%= foo %>"')
+      end
+
+      it "handles Vue/Angular shorthand binding keys" do
+        result = build_dynamic('"@click" => handler, ":value" => model')
+        expect(result).to include('@click="<%= handler %>"')
+        expect(result).to include(':value="<%= model %>"')
+      end
+    end
+
     context "array values" do
       it "joins array class values with spaces" do
         result = build_dynamic('class: ["foo", "bar", "baz"]')
