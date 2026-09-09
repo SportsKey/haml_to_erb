@@ -132,19 +132,19 @@ RSpec.describe HamlToErb::AttributeBuilder do
         expect(result).to include('aria-expanded="false"')
       end
 
-      it "outputs aria attribute with true as string" do
+      it "outputs a top-level aria attribute with true as a bare attribute, like hamlit" do
         result = build_dynamic('"aria-hidden": true')
-        expect(result).to include('aria-hidden="true"')
+        expect(result).to eq(" aria-hidden")
       end
 
-      it "outputs data attribute with false as string" do
+      it "omits a nested data attribute with false, like hamlit" do
         result = build_dynamic("data: { active: false }")
-        expect(result).to include('data-active="false"')
+        expect(result).not_to include("data-active")
       end
 
-      it "outputs data attribute with true as string" do
+      it "outputs a nested data attribute with true as a bare attribute, like hamlit" do
         result = build_dynamic("data: { loading: true }")
-        expect(result).to include('data-loading="true"')
+        expect(result).to eq(" data-loading")
       end
     end
 
@@ -224,10 +224,9 @@ RSpec.describe HamlToErb::AttributeBuilder do
         expect(result).to include('data-value="test"')
       end
 
-      it "expands nested aria attributes" do
+      it "expands nested aria attributes with hamlit's boolean handling" do
         result = build_dynamic("aria: { expanded: true, hidden: false }")
-        expect(result).to include('aria-expanded="true"')
-        expect(result).to include('aria-hidden="false"')
+        expect(result).to eq(" aria-expanded")
       end
 
       it "expands dynamic values in nested hashes" do
@@ -263,18 +262,16 @@ RSpec.describe HamlToErb::AttributeBuilder do
       end
     end
 
-    context "double splat (unsupported)" do
-      it "skips double splat with warning" do
-        expect { build_dynamic("**options") }
-          .to output(/WARNING.*Double splat.*not supported/i).to_stderr
+    context "double splat" do
+      it "spreads the hash through tag.attributes" do
+        expect(build_dynamic("**options")).to eq(" <%= tag.attributes(**(options)) %>")
       end
 
       it "preserves other attributes when double splat present" do
-        result = nil
-        expect { result = build_dynamic('alt: "Image", **extra, title: "Title"') }
-          .to output(/WARNING/).to_stderr
+        result = build_dynamic('alt: "Image", **extra, title: "Title"')
         expect(result).to include('alt="Image"')
         expect(result).to include('title="Title"')
+        expect(result).to end_with(" <%= tag.attributes(**(extra)) %>")
       end
     end
 

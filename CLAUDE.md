@@ -64,7 +64,9 @@ Tests use RSpec with a custom `be_valid_erb` matcher that validates output again
 
 ## Known Limitations
 
-- Double splat (`**`) in attributes not supported (warning issued, attribute skipped)
+- Non-literal attribute values emit Rails helpers (`class_names`, `tag.attributes`), so the ERB needs Rails >= 7.0
+- Boolean values inside a `data:`/`aria:` hash *variable* go through `tag.attributes`, which writes `"true"`/`"false"`; hamlit writes a bare attribute / omits it. Inline hashes are handled (literals, predicate calls, nil-capable expressions)
+- `!=` on the continuation line of a multi-line tag is read as `=` (the operator is detected from the node's first source line)
 - Whitespace removal markers (`>`, `<`) parsed but not applied
 - Old doctypes converted to HTML5
 - Unknown filters (`:markdown`, etc.) output as HTML comments

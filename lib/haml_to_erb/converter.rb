@@ -19,6 +19,7 @@ module HamlToErb
     end
 
     def convert
+      @lines = @input.lines
       parser = Haml::Parser.new({})
       ast = parser.call(@input)
       emit(ast, 0)
@@ -62,7 +63,7 @@ module HamlToErb
       if v[:self_closing] || (is_void && node.children.empty? && (v[:value].nil? || v[:value].to_s.empty?))
         result + "\n"
       elsif v[:value] && !v[:value].to_s.empty?
-        content = format_tag_content(v)
+        content = format_tag_content(node)
         if is_void
           warn "WARNING: Void element <#{tag}> has inline content at line #{node.line}. " \
                "Content will be emitted as a sibling."
@@ -86,15 +87,34 @@ module HamlToErb
     def emit_script(node, depth)
       ind = indent(depth)
       code = node.value[:text].strip
+      open = output_tag(node)
 
       if node.children.any?
-        "#{ind}<%= #{code} %>\n" + emit_children(node, depth + 1) + "#{ind}<% end %>\n"
-      elsif code.start_with?('"') && code.end_with?('"') && code.include?('#{')
+        "#{ind}#{open} #{code} %>\n" + emit_children(node, depth + 1) + "#{ind}<% end %>\n"
+      elsif open == "<%=" && code.start_with?('"') && code.end_with?('"') && code.include?('#{')
         # String literal with interpolation (Haml dumps interpolated plain text
         # this way). Decode the escape sequences and convert the interpolation.
         "#{ind}#{StringLiteralDecoder.decode(code)}\n"
       else
-        "#{ind}<%= #{code} %>\n"
+        "#{ind}#{open} #{code} %>\n"
+      end
+    end
+
+    # `!=` disables HTML escaping in HAML; the ERB equivalent is `<%==`. The parser
+    # reports the same escape flag for `=` and `!=` under default options (and
+    # enabling escape_html rewrites interpolated text), so read the operator from
+    # the source line instead.
+    def output_tag(node)
+      unescaped?(node) ? "<%==" : "<%="
+    end
+
+    def unescaped?(node)
+      line = @lines[node.line - 1].to_s
+      if node.type == :script
+        line.match?(/\A\s*!=/)
+      else
+        value = node.value[:value].to_s.strip
+        !value.empty? && line.match?(/!=\s*#{Regexp.escape(value)}\s*\z/)
       end
     end
 
@@ -128,7 +148,7 @@ module HamlToErb
     def emit_filter(node, depth)
       ind = indent(depth)
       name = node.value[:name]
-      text = node.value[:text]
+      text = node.value[:text].to_s
 
       case name
       when "javascript"
@@ -142,7 +162,11 @@ module HamlToErb
       when "plain", "erb"
         text.lines.map { |l| "#{ind}#{l.rstrip}\n" }.join
       when "ruby"
-        text.lines.map { |l| "#{ind}<% #{l.strip} %>\n" }.join
+        # One block with the newlines kept: a statement may span lines, and a
+        # trailing `# comment` must end before `%>` or it swallows the tag.
+        return "" if text.strip.empty?
+
+        "#{ind}<%\n" + text.lines.map { |l| l.strip.empty? ? "\n" : "#{ind}  #{l.rstrip}\n" }.join + "#{ind}%>\n"
       else
         "#{ind}<!-- Unknown filter: #{name} -->\n#{ind}#{text}\n"
       end
@@ -158,16 +182,36 @@ module HamlToErb
       end
     end
 
+    # `/ text` becomes <!-- text -->. The block form wraps its children; `/[if IE]` is a
+    # conditional comment and `/![if IE]` a revealed one, rendered as hamlit does.
     def emit_comment(node, depth)
-      "#{indent(depth)}<!-- #{node.value[:text]} -->\n"
+      ind = indent(depth)
+      v = node.value
+      open, close = comment_delimiters(v[:conditional], v[:revealed])
+      if node.children.any?
+        "#{ind}#{open}\n" + emit_children(node, depth + 1) + "#{ind}#{close}\n"
+      else
+        "#{ind}#{open} #{v[:text].to_s.strip} #{close}\n"
+      end
     end
 
+    def comment_delimiters(conditional, revealed)
+      return [ "<!--", "-->" ] unless conditional
+      return [ "<!--#{conditional}><!-->", "<!--<![endif]-->" ] if revealed
+
+      [ "<!--#{conditional}>", "<![endif]-->" ]
+    end
+
+    # `-#` comments become ERB comments. A literal `%>` would close the tag early, so it
+    # is broken up; blank lines inside a block stay blank rather than gaining indentation.
     def emit_haml_comment(node, depth)
-      text = node.value[:text]
+      ind = indent(depth)
+      text = node.value[:text].to_s.gsub("%>", "% >")
       if text.include?("\n")
-        "#{indent(depth)}<%#\n#{text.lines.map { |l| "#{indent(depth + 1)}#{l}" }.join}#{indent(depth)}%>\n"
+        body = text.lines.map { |l| l.strip.empty? ? "\n" : "#{indent(depth + 1)}#{l}" }.join
+        "#{ind}<%#\n#{body}#{ind}%>\n"
       else
-        "#{indent(depth)}<%##{text} %>\n"
+        "#{ind}<%##{text} %>\n"
       end
     end
 
@@ -175,15 +219,17 @@ module HamlToErb
       "#{indent(depth)}#{Interpolation.convert(node.value[:text])}\n"
     end
 
-    def format_tag_content(tag_data)
+    def format_tag_content(node)
+      tag_data = node.value
       val = tag_data[:value].to_s
       if tag_data[:parse]
-        if val.start_with?('"') && val.end_with?('"') && val.include?('#{')
+        open = output_tag(node)
+        if open == "<%=" && val.start_with?('"') && val.end_with?('"') && val.include?('#{')
           # Inline tag content with interpolation arrives as a Ruby string
           # literal (dumped by Haml); decode escapes and convert interpolation.
           StringLiteralDecoder.decode(val)
         else
-          "<%= #{val} %>"
+          "#{open} #{val} %>"
         end
       else
         Interpolation.convert(val)

@@ -304,7 +304,7 @@ RSpec.describe HamlToErb::Converter do
         expect(result).to include("<%= @value %>")
       end
 
-      it "converts :ruby filter to silent ERB" do
+      it "converts :ruby filter to one silent ERB block" do
         haml = <<~HAML
           :ruby
             x = 1
@@ -312,8 +312,7 @@ RSpec.describe HamlToErb::Converter do
         HAML
 
         result = convert(haml)
-        expect(result).to include("<% x = 1 %>")
-        expect(result).to include("<% y = 2 %>")
+        expect(result).to eq("<%\n  x = 1\n  y = 2\n%>\n")
       end
 
       it "converts interpolation within :javascript filter" do
@@ -375,12 +374,12 @@ RSpec.describe HamlToErb::Converter do
             Line 2
         HAML
         result = convert(haml)
-        expect(result.strip).to eq(<<~EOS.strip)
+        expect(result.strip).to eq(<<~ERB.strip)
           <%#
             Line 1
             Line 2
           %>
-        EOS
+        ERB
       end
 
       it "preserves indentation for nested comments" do
@@ -392,6 +391,35 @@ RSpec.describe HamlToErb::Converter do
         result = convert(haml)
         expect(result).to include("  <%# nested %>")
         expect(result).to include("  <p>text</p>")
+      end
+
+      it "wraps a block comment's children in the HTML comment" do
+        haml = <<~HAML
+          /
+            %p hidden
+        HAML
+        expect(convert(haml)).to eq("<!--\n  <p>hidden</p>\n-->\n")
+      end
+
+      it "converts conditional comments" do
+        haml = <<~HAML
+          /[if lt IE 9]
+            %script{ src: "html5shiv.js" }
+        HAML
+        expect(convert(haml)).to eq("<!--[if lt IE 9]>\n  <script src=\"html5shiv.js\"></script>\n<![endif]-->\n")
+        expect(convert("/[if IE] inline text")).to eq("<!--[if IE]> inline text <![endif]-->\n")
+      end
+
+      it "converts revealed conditional comments" do
+        expect(convert("/![if IE]\n  %p revealed\n")).to eq("<!--[if IE]><!-->\n  <p>revealed</p>\n<!--<![endif]-->\n")
+      end
+
+      it "keeps a literal %> inside a HAML comment from closing the ERB tag" do
+        expect(convert("-# uses %> in text")).to eq("<%# uses % > in text %>\n")
+      end
+
+      it "leaves blank lines inside a multi-line HAML comment unindented" do
+        expect(convert("-#\n  one\n\n  two\n")).to eq("<%#\n  one\n\n  two\n%>\n")
       end
     end
 

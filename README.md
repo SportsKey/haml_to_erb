@@ -120,7 +120,13 @@ This produces output that looks like what a human would write, making converted 
 
 ## Known Limitations
 
-- Double splat (`**`) in attributes not supported (warning issued)
+- Attribute values that are not literals rely on Rails view helpers in the generated ERB:
+  `class_names` for dynamic classes and `tag.attributes` for `**opts`, `data:`/`aria:`
+  hash variables and nil-capable nested values (Rails >= 7.0)
+- Inside a `data:`/`aria:` hash *variable* (`data: attrs`), `tag.attributes` writes `true`/`false`
+  values as `"true"`/`"false"`, where hamlit writes a bare attribute or omits it. Literal and
+  predicate values in inline hashes are handled; a hash built elsewhere is not inspected
+- A `!=` on the continuation line of a multi-line tag is treated as `=`
 - Whitespace removal markers (`>`, `<`) parsed but whitespace not removed
 - Old doctypes (`!!! Strict`, `!!! Transitional`) converted to HTML5
 - `:markdown` and other custom filters output as HTML comments
