@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Version is `0.1.0.sportskey.1`, so `haml_to_erb --version` and proof reports can tell this fork
+  from upstream 0.1.0. Conversion behaviour is unchanged from the previous commit
 - Generated ERB now relies on Rails' `class_names` and `tag.attributes` helpers (Rails >= 7.0)
   whenever an attribute value is not a literal
 - `:ruby` filters emit one `<% ... %>` block with newlines preserved, so multi-line
